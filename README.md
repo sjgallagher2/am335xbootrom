@@ -10,13 +10,13 @@ I figured at this point that it would be worthwhile to connect up a debug probe.
 
 The beaglebone board has a header with designator P2 which breaks out the JTAG connections. I connected some wires to this up to a female header so that I can talk to it through my J-Link.
 
-![](am335x-1.png)
-![](JTAG-connections1.jpg)
-![](JTAG-connector-1.jpg)
+![](img/am335x-1.png)
+![](img/JTAG-connections1.jpg)
+![](img/JTAG-connector-1.jpg)
 
-![](JTAG-jlink.jpg)
+![](img/JTAG-jlink.jpg)
 
-![](JTAG-pinout.jpg)
+![](img/JTAG-pinout.jpg)
 
 Launching into Ozone (the Segger debugger) I configured the J-Link and started by just trying to find the entry point. I had thought that a reset-halt would put me where I needed to be, which was how I came to the (incorrect) assumption that the entry point was `0x2148a`, although I certainly noticed that this wasn't consistent. Later, I realized that the AM335x boards don't really play well with the J-Link's reset-halt, so there was actually a delay of maybe a few hundred clock cycles, landing me somewhere inside a boot handler, indeterministically. (I eventually got around this by writing a GEL file for TI's Code Composer Studio which supports J-Link debugging - on reset, the PC register is set to the reset handler, the registers are cleared, and the instruction mode is forced to ARM.)
 
@@ -24,7 +24,7 @@ From a thread on the TI forums ([AM335x: TI employees, where can I get the ROM B
 
 Chapter 26 of the TRM contains a ton of information on booting. We get the following view of the boot ROM:
 
-![](am335x-2.png)
+![](img/am335x-2.png)
 
 **Description**:
 
@@ -34,7 +34,7 @@ Chapter 26 of the TRM contains a ton of information on booting. We get the follo
 > Finally the HAL implements the lowest level code for interacting with the hardware infrastructure IPs. End booting devices are attached to device IO pads.
 
 
-![](am335x-3.png)
+![](img/am335x-3.png)
 
 > Figure 26-2 illustrates the high level flow for the Public ROM Code booting procedure. On this device the Public ROM Code starts upon completion of the secure startup (performed by the Secure ROM Code). The ROM Code then performs platform configuration and initialization as part of the public start-up procedure. The booting device list is created based on the SYSBOOT pins. A booting device can be a memory booting device (soldered flash memory or temporarily booting device like memory card) or a peripheral interface connected to a host.
 > The main loop of the booting procedure goes through the booting device list and tries to search for an image from the currently selected booting device. This loop is exited if a valid booting image is found and successfully executed or upon watchdog expiration. The image authentication procedure is performed prior to image execution on an HS Device. Failure in authentication procedure leads to branching to a “dead loop” in Secure ROM (waiting for a watchdog reset).
@@ -123,10 +123,10 @@ Operations in this block:
 	4. See [here](https://developer.arm.com/documentation/ddi0406/b/System-Level-Architecture/The-System-Level-Programmers--Model/ARM-processor-modes-and-core-registers/Program-Status-Registers--PSRs-) for more info
 2. Load the address to the ROM reset vector
 3. Access [coprocessor 15](https://developer.arm.com/documentation/den0013/d/ARM-Processor-Modes-and-Registers/Registers/Coprocessor-15) (system control coproc) Security Extensions register `c12` and load the ROM reset vector into the `VBAR` (vector base address register)
-![](am335x-4.png)
+![](img/am335x-4.png)
 4. Look like `nop` jumps? Why `bl` instead of `b`?
 5. Enable branch prediction (set system control register `SCTLR` bit 11)
-![](am335x-5.png)
+![](img/am335x-5.png)
 *CP15 `c1` registers (system control registers) in VMSA implementation*
 
 Description of the `SCTLR` register:
@@ -171,7 +171,7 @@ The operations here are:
 
 This should be the `__main()` function referred to in the boot flow chart:
 
-![](am335x-6.png)
+![](img/am335x-6.png)
 
 This would make the next function the `main` function. 
 
@@ -215,7 +215,7 @@ Most interesting for my purposes is the `run_booting_loop` function at `0x20a10`
 After going through the startup and getting to this part with strings like "ISSW" and "CHSETTINGS" and "X-LOADER", I started looking around for other places these strings might pop up in U-Boot related contexts. I stumbled on [this thread](https://forum.xda-developers.com/t/discussion-on-the-boot-loader-cracked.1378886/) of people reversing or cracking the Nook firmware, and the [x-loader source](https://github.com/joelagnel/x-loader/blob/f3c74bc9b01dac58e553393d6ec1041353f2f1f7/scripts/signGP.c) contains references to things like `CHSETTINGS`. From looking around, "ISSW" [seems to](https://github.com/u-boot/u-boot/blob/master/doc/README.ti-secure) refer to booting from non-memory devices. 
 
 Recall from the initialization documentation, the high level code:
-![](am335x-7.png)
+![](img/am335x-7.png)
 
 Of interest:
 - RNDIS
@@ -228,7 +228,7 @@ Of interest:
 Maybe it's time to try some live debugging again. Trying to reverse all those structs would probably be painful considering the large amount of data which I can't understand...
 
 Hooray! Live debugging works when setting the PC and SP manually using the vectors I've found:
-![](am335x-8.png)
+![](img/am335x-8.png)
 
 From the source and the tracing vectors, I was able to map out the various boot options and what device number they are assigned. This later became very useful, since I had to distinguish between MMC0 (8) and MMCSD1 (9) when setting breakpoints in the SD/MMC boot handler. 
 
@@ -341,11 +341,11 @@ I found that there was a function at `0x23d7a` which I've called `boot_into_SRAM
 
 We've successfully booted into the SRAM, now I'm wondering about the UART terminal, which should show information about uboot. The hardware connection is below.
 
-![](UART2.jpg)
+![](img/UART2.jpg)
 
 Connecting to the device with CuteCom, 115200 @ 8-N-1, without an SD card inserted it simply outputs `C` repeatedly. 
 
-![](am335x-9.png)
+![](img/am335x-9.png)
 
 But when the SD card is inserted, the UART doesn't output anything. No messages, no characters. The fault must be coming up too early in the boot process? But now that I also know what code it's executing (and I have its source) I should be able to build some debugging symbols for it and get a proper debug session going. This might not be trivial, I have to make sure I'm compiling the code the same way, it might just take me some time to learn exactly what the SDK has loaded onto my SD card and how to build it.
 
@@ -376,7 +376,7 @@ We go into the function `device_probe()` (`0x402f 74c4`), then a couple other fu
 
 My board is the one shown below.
 
-![](am335x-10.png)
+![](img/am335x-10.png)
 
 The memory is from Micron, while the schematic for the BeagleBone Black that I have (rev C3) uses Kingston DDR3 memory, specifically the D2516EC4BXGGB. The DDR3 is U12, we can use the [Micron marking decoder page](https://www.micron.com/sales-support/design-tools/fbga-parts-decoder) to find the part:
 - [MT41K256M16TW-107 XIT:P](https://www.micron.com/products/memory/dram-components/ddr3-sdram/part-catalog/part-detail/mt41k256m16tw-107-xit-p)
@@ -398,7 +398,7 @@ The memory circuitry is described in detail on the hardware design page.
 - [Memory Device](https://docs.beagleboard.org/latest/boards/beaglebone/black/ch06.html#memory-device)
 
 Let's check the clock enable line. We can check both sides of R96, one side should be grounded, the other side should be held high.
-![](am335x-11.png)
+![](img/am335x-11.png)
 Confirmed, 1.5V on CKE. 
 
 The next step is to check the clock signal. I did what I could here, using the tinySA with the antenna connected pointing roughly in the direction of the RAM chip. Doing this sort of "sniffing" I feel fairly sure that the clock is present, at least enough for right now. 
@@ -447,12 +447,12 @@ My reversing efforts in Ghidra had led me to the SD card boot handler functions,
 
 I was curious to see why the card kept returning all zeroes during each block request. Clearly, the card functions and the software can read from it because it's already done it in the past. But still, it was time to wire things up and take a look with logic analyzer. A bit of microsoldering, holding down the 30awg wires with UV-cure epoxy, and clipping on with my Saleae, and we have something that works. 
 
-![](am335x-12.png)
-![](am335x-13.png)
+![](img/am335x-12.png)
+![](img/am335x-13.png)
 
 I used [this analyzer](https://github.com/airbus-seclab/sdmmc-analyzer) to analyze the data. First I tried it without a card inserted.
 
-![](am335x-14.png)
+![](img/am335x-14.png)
 
 For the first few commands the clock rate is 120 kHz. Obviously, the card does not reply (it's not there).
 
@@ -470,7 +470,7 @@ CMD1, arg=\0 SEND_OP_COND
 
 When the card is actually inserted, the frequency jumps to around 6 MHz after configuration.
 
-![](am335x-15.png)
+![](img/am335x-15.png)
 
 After getting over some crashes from using the SD mode (tip: even for this SD card you should use the MMC mode) and I could verify that the card was providing reasonable data. I put this to rest after this because I redoubled my efforts to understand the SD card boot handler and realized that the correct data *was* being read, and it was the same data as I had gotten from manually `dd`ing the card! Welp, it was a fun detour and helped me feel confident that the card was working. 
 

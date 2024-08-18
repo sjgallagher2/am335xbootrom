@@ -2,6 +2,16 @@
 
 It's probably been eighteen months since I first got my hands a few Beaglebone Black boards, saved from the dumpster. Unfortunately, the boards didn't work right away. Now, this was my first time working with one of these boards, or any single board computer for that matter, so I wasn't sure if the problem was something I was doing, or something wrong with the boards themselves (perhaps why they were headed for the dumpster in the first place). It has taken me quite a long time, and a large amount of effort, to get these boards to actually start booting, but damn it, I did it. And here's what I learned along the way.
 
+#### NOTE: How to Use the Ghidra XML File
+I've included some utilities in this repo, along with an xml file exported from Ghidra which has all the symbols I've obtained so far from reversing. I used [this post](https://github.com/NationalSecurityAgency/ghidra/discussions/3853#discussioncomment-1976557) to export without the actual firmware, to avoid any copyright issues, just in case. If you want to debug the boot ROM yourself, you'll already have the JTAG hooked up, so you can dump the boot ROM (from `0x20000` to `0x2BFFF`) yourself.
+
+To load the symbols:
+
+1. Create a new Ghidra project. Import the *binary* (not the XML) into Ghidra: Use ARMv7 Little Endian, and make sure under Options you set the base address to `0x20000` and you can set the block name to `bootrom`. 
+2. Open this binary in CodeBrowser. *DO NOT ANALYZE*. 
+3. Go to File > Add program, and select the XML file. Defaults should be fine. You can now go through the reset handler, or jump to `main()`, or the MMC/SD card boot handler.
+
+
 ## The Problem
 
 To begin with, I knew these were custom versions of the standard beaglebone black, so early on I determined that it could be something missing on the board itself, like a board identifier. What I saw when booting a standard SD card formatted with balenaEtcher, was just nothing. I expected the LEDs on the board to start blinking, and I expected that connecting up a UART to USB cable would allow me to see the you boot process. However, the UART was quiet. If I removed the SD card, it would output the letter `C` over and over, which is expected behavior for a UART/serial boot. It was definitely *trying* to boot, and the SD card was altering this behavior, but I didn't have any more visibility. Most troubleshooting on the web took the U-Boot output as a starting point to diagnose problems. I guess I wasn't going to have that luxury.

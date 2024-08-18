@@ -10,13 +10,13 @@ I figured at this point that it would be worthwhile to connect up a debug probe.
 
 The beaglebone board has a header with designator P2 which breaks out the JTAG connections. I connected some wires to this up to a female header so that I can talk to it through my J-Link.
 
-![pasted image 20240719171055](img/Pasted image 20240719171055.png)
+![](img/Pasted image 20240719171055.png)
 ![](img/JTAG-connections1.jpg)
-![](img/JTAG-connector 1.jpg|400)
+![](img/JTAG-connector 1.jpg)
 
 ![](img/JTAG-jlink.jpg)
 
-![](img/JTAG-pinout.jpg|300)
+![](img/JTAG-pinout.jpg)
 
 Launching into Ozone (the Segger debugger) I configured the J-Link and started by just trying to find the entry point. I had thought that a reset-halt would put me where I needed to be, which was how I came to the (incorrect) assumption that the entry point was `0x2148a`, although I certainly noticed that this wasn't consistent. Later, I realized that the AM335x boards don't really play well with the J-Link's reset-halt, so there was actually a delay of maybe a few hundred clock cycles, landing me somewhere inside a boot handler, indeterministically. (I eventually got around this by writing a GEL file for TI's Code Composer Studio which supports J-Link debugging - on reset, the PC register is set to the reset handler, the registers are cleared, and the instruction mode is forced to ARM.)
 
@@ -34,7 +34,7 @@ Chapter 26 of the TRM contains a ton of information on booting. We get the follo
 > Finally the HAL implements the lowest level code for interacting with the hardware infrastructure IPs. End booting devices are attached to device IO pads.
 
 
-![](img/AM335x Boot ROM 2.png|600)
+![](img/AM335x Boot ROM 2.png)
 
 > Figure 26-2 illustrates the high level flow for the Public ROM Code booting procedure. On this device the Public ROM Code starts upon completion of the secure startup (performed by the Secure ROM Code). The ROM Code then performs platform configuration and initialization as part of the public start-up procedure. The booting device list is created based on the SYSBOOT pins. A booting device can be a memory booting device (soldered flash memory or temporarily booting device like memory card) or a peripheral interface connected to a host.
 > The main loop of the booting procedure goes through the booting device list and tries to search for an image from the currently selected booting device. This loop is exited if a valid booting image is found and successfully executed or upon watchdog expiration. The image authentication procedure is performed prior to image execution on an HS Device. Failure in authentication procedure leads to branching to a “dead loop” in Secure ROM (waiting for a watchdog reset).
@@ -341,11 +341,11 @@ I found that there was a function at `0x23d7a` which I've called `boot_into_SRAM
 
 We've successfully booted into the SRAM, now I'm wondering about the UART terminal, which should show information about uboot. The hardware connection is below.
 
-![](UART2.jpg|400)
+![](UART2.jpg)
 
 Connecting to the device with CuteCom, 115200 @ 8-N-1, without an SD card inserted it simply outputs `C` repeatedly. 
 
-![](Pasted image 20240720094718.png|400)
+![](Pasted image 20240720094718.png)
 
 But when the SD card is inserted, the UART doesn't output anything. No messages, no characters. The fault must be coming up too early in the boot process? But now that I also know what code it's executing (and I have its source) I should be able to build some debugging symbols for it and get a proper debug session going. This might not be trivial, I have to make sure I'm compiling the code the same way, it might just take me some time to learn exactly what the SDK has loaded onto my SD card and how to build it.
 

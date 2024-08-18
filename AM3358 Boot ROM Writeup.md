@@ -10,7 +10,7 @@ I figured at this point that it would be worthwhile to connect up a debug probe.
 
 The beaglebone board has a header with designator P2 which breaks out the JTAG connections. I connected some wires to this up to a female header so that I can talk to it through my J-Link.
 
-![](Pasted image 20240719171055.png)
+![pasted image 20240719171055](Pasted image 20240719171055.png)
 ![](JTAG-connections1.jpg)
 ![](JTAG-connector 1.jpg|400)
 

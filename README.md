@@ -704,8 +704,22 @@ As a last step, I'll write in the correct board ID to the EEPROM, which is easy 
 
 And there's also an optional board revision. Based on the schematic, the EEPROM is on I2C0, and the chip itself (24LC32A on my schematic, although it's labeled '256Kx8) provides the I2C device address of `0x50` (binary `b1010` followed by `000` chip address, since the 5 pin package doesn't have additional address pins). One last point of note: the WP pin is pulled HIGH with a 10k pull-up, so write protect is enabled by default; it needs to be tied low before any writing can occur, or else it will acknowledge but simply not write anything. 
 
-The EEPROM can be accessed through the kernel at `/sys/bus/i2c/devices/0-0050`, within which there is a file called `eeprom`. Therefore, with the WP pin pulled LOW (tie TP4 on the top near the DC jack to ground) a simple `echo` is all that's needed:
+The EEPROM can be accessed through the kernel at `/sys/bus/i2c/devices/0-0050`, within which there is a file called `eeprom`. Therefore, with the WP pin pulled LOW (tie TP4 on the top near the DC jack to ground) a few `echo` calls is all that's needed. The Beaglebone Black System Reference Manual has the format.
 ```sh
-root@am335x-evm:/sys/bus/i2c/devices/0-0050# echo 'A335BNLT' > eeprom
+root@am335x-evm:~# cat fix_eeprom.sh 
+#!/bin/bash
+# Fix board ID EEPROM
+
+EEPROM_FILE=/tmp/eeprom.tmp
+EEPROM=/sys/bus/i2c/devices/0-0050/eeprom
+
+# header bytes
+echo -ne "\xaa\x55\x33\xee" > ${EEPROM_FILE}
+# Board ID
+echo -n "A335BNLT" >> ${EEPROM_FILE}
+# serial number (I left this basically as the template)
+echo -n "000C24wwBBoxxxx" >> ${EEPROM_FILE}
+
+dd if=${EEPROM_FILE} of=${EEPROM}
 ```
 Using `less` to confirm, and we should have no issue running a default SD card from now on. Changes to the SPL and the U-Boot config can be rolled back, once all boards have their EEPROMs written. 

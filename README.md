@@ -14,7 +14,7 @@ To load the symbols:
 
 ## The Problem
 
-To begin with, I knew these were custom versions of the standard beaglebone black, so early on I determined that it could be something missing on the board itself, like a board identifier. What I saw when booting a standard SD card formatted with balenaEtcher, was just nothing. I expected the LEDs on the board to start blinking, and I expected that connecting up a UART to USB cable would allow me to see the you boot process. However, the UART was quiet. If I removed the SD card, it would output the letter `C` over and over, which is expected behavior for a UART/serial boot. It was definitely *trying* to boot, and the SD card was altering this behavior, but I didn't have any more visibility. Most troubleshooting on the web took the U-Boot output as a starting point to diagnose problems. I guess I wasn't going to have that luxury.
+To begin with, I knew these were custom versions of the standard beaglebone black, so early on I determined that it could be something missing on the board itself, like a board identifier. What I saw when booting a standard SD card formatted with balenaEtcher, was just nothing. I expected the LEDs on the board to start blinking, and I expected that connecting up a UART to USB cable would allow me to see the U-Boot process. However, the UART was quiet. If I removed the SD card, it would output the letter `C` over and over, which is expected behavior for a UART/serial boot. It was definitely *trying* to boot, and the SD card was altering this behavior, but I didn't have any more visibility. Most troubleshooting on the web took the U-Boot output as a starting point to diagnose problems. I guess I wasn't going to have that luxury.
 
 I figured at this point that it would be worthwhile to connect up a debug probe. Unfortunately, I didn't have a matching header for the existing footprint come so I made my own.
 
@@ -692,5 +692,20 @@ root@am335x-evm:~#
 
 At long last, we're at a terminal. My junk boards are alive!
 
+### Fixing the Missing EEPROM ID
 
+As a last step, I'll write in the correct board ID to the EEPROM, which is easy to do from within Linux user space. From the SPL source, the various board IDs are:
+- `A335BONE` - Beaglebone board
+- `A335BNLT` - Beaglebone Black board
+- `A335PBGL`
+- `A335X_SK`
+- `A33515BB`
+- `A335_ICE`
 
+And there's also an optional board revision. Based on the schematic, the EEPROM is on I2C0, and the chip itself (24LC32A on my schematic, although it's labeled '256Kx8) provides the I2C device address of `0x50` (binary `b1010` followed by `000` chip address, since the 5 pin package doesn't have additional address pins). One last point of note: the WP pin is pulled HIGH with a 10k pull-up, so write protect is enabled by default; it needs to be tied low before any writing can occur, or else it will acknowledge but simply not write anything. 
+
+The EEPROM can be accessed through the kernel at `/sys/bus/i2c/devices/0-0050`, within which there is a file called `eeprom`. Therefore, with the WP pin pulled LOW (tie TP4 on the top near the DC jack to ground) a simple `echo` is all that's needed:
+```sh
+root@am335x-evm:/sys/bus/i2c/devices/0-0050# echo 'A335BNLT' > eeprom
+```
+Using `less` to confirm, and we should have no issue running a default SD card from now on. Changes to the SPL and the U-Boot config can be rolled back, once all boards have their EEPROMs written. 
